@@ -1,12 +1,22 @@
 const quests = require('./Jsons/Quest.json');
 const users = require('./Jsons/Users.json');
+
 const express = require('express');
 const { response } = require('express');
 const server = express();
+
+const db = require('./Models/database.js');
+
+const Client = require('./Models/Clients');
+const User = require('./Models/Users');
+const Quest = require('./Models/Quests');
+const Pet = require('./Models/Pets');
+const Andress = require('./Models/Adress');
+
+const nodemailer = require('nodemailer');
+
 let error  = "";
 
-
-var nodemailer = require('nodemailer');
 
 function sendEmail(emailTo, petName, oldStatus, newStatus){
     var remetente = nodemailer.createTransport({
@@ -46,13 +56,14 @@ function sendEmail(emailTo, petName, oldStatus, newStatus){
             
 }
 
-server.post('/Login/:user/:password', (require, response) =>{
+
+
+
+server.post('/Logins/:user/:password', (require, response) =>{
     console.log("Post Login Requisitado!");
 
     const username = require.params.user;
     const password = require.params.password;
-
-    console.log(username, password);
 
     if(username == null && username == "" & password == null && password == ""){
         error = "Username or Password is null or Empty";
@@ -68,12 +79,65 @@ server.post('/Login/:user/:password', (require, response) =>{
     }
 });
 
-server.get('/quest', (require, response) => {
+server.post('/Login/:user/:password', async (require, response) => {
+    console.log("Post Login Requisitado!");
+
+    const username = require.params.user;
+    const password = require.params.password;
+    let user = await User.findAll(  
+        {
+            where: {
+                usuario: username,
+                senha: password,
+              }
+        });
+    user = JSON.parse(JSON.stringify(user, null, 2));
+
+    if(user[0]){
+        response.json(user[0]);
+    }else{
+        error = "User not found";
+        return response.json(error); 
+    }
+
+});
+
+
+
+
+
+server.get('/quests', (require, response) => {
     console.log("Req. recebido!");
     return response.json(quests);
 });
 
-server.put('/quest/StatusModify/:id', (require, response) => {
+server.get('/quest', async (require, response) => {
+    console.log("Req. recebido!");
+
+    let quest = await Quest.findAll();
+    let finalQuest = [];
+    let andress;
+
+    for(let i = 1; i <= quest.length; i++){
+        if(Quest.findByPk(i, {include: [Pet, Client]})){
+            andress = await Andress.findByPk(i, {include: [Client]})
+            finalQuest.push({"Quest":  await Quest.findByPk(i, {include: [Pet]}),"Endereco": andress});
+            console.log("indice I: ", i, " retorno: ", finalQuest);
+        }
+    }
+
+
+    JSON.parse(JSON.stringify(finalQuest, null, 0));
+
+    return response.json(finalQuest);
+
+});
+
+
+
+
+
+server.put('/quests/StatusModify/:id', (require, response) => {
     
     console.log("Put Requisitado!");
     
@@ -103,6 +167,47 @@ server.put('/quest/StatusModify/:id', (require, response) => {
 
 
         return response.json(quests);
+    }
+
+});
+
+server.put('/quest/StatusModify/:id', async (require, response) =>  {
+    
+    console.log("Put Requisitado!");
+    
+    const QuestID = require.params.id;
+    
+    if(QuestID == null || QuestID == ""){
+        error = "Quest id null or Empty";
+        return response.json(error);
+    }else{
+
+        const quest = await Quest.findAll(  
+            {
+                attributes: [
+                    'Id',
+                    'Status'
+                ],
+                where: {
+                    Id: QuestID,
+                  }
+            });
+
+            console.log("Quest ID result: ", quest[0].Id, " Status: ",quest[0].Status);
+            if(quest[0]){
+                
+                if(quest[0].Status == "Coletado"){
+                    Quest.update({Status: "Entregue"}, {where: {Id: quest[0].Id}});
+                    //sendEmail(quests[index].Responsavel.Email, quests[index].Animal.Nome ,"Coletado", "Entregue");
+                }
+                if(quest[0].Status == "Aguardando Coleta"){ 
+                    Quest.update({Status: "Coletado"}, {where: {Id: quest[0].Id}});
+                    //sendEmail(quests[index].Responsavel.Email, quests[index].Animal.Nome ,"Aguardando Coleta", "Coletado");
+                }
+            }else{
+                error = "Nenhum registro encontrado para esse Id";
+                return response.json(error);  
+            }
     }
 
 });
