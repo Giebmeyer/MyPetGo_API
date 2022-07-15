@@ -10,8 +10,9 @@ const db = require('./Models/database.js');
 const Client = require('./Models/Clients');
 const User = require('./Models/Users');
 const Quest = require('./Models/Quests');
+const Quests_Annotation = require('./Models/Quests_Annotation');
 const Pet = require('./Models/Pets');
-const Andress = require('./Models/Adress');
+const Andress = require('./Models/Andress');
 
 const nodemailer = require('nodemailer');
 
@@ -106,6 +107,35 @@ server.post('/Login/:user/:password', async (require, response) => {
 
 
 
+server.post('/Quest_Annotation/:idQuest/:Annotation', async (require, response) => {
+    console.log("Post anotação Requisitado!");
+
+    const idQuest = require.params.idQuest;
+    const anotationQuest = require.params.Annotation;
+
+    let quest = await Quest.findAll(  
+        {
+            where: {
+                Id: idQuest,
+              }
+        });
+
+    quest = JSON.parse(JSON.stringify(quest, null, 2));
+
+    if(quest[0]){
+        Quests_Annotation.create({"Anotacao": anotationQuest, "QuestId": idQuest})
+        return response.json(true);
+    }else{
+        quest = "Quest not found";
+        return response.json(error); 
+    }
+
+});
+
+
+
+
+
 server.get('/quests', (require, response) => {
     console.log("Req. recebido!");
     return response.json(quests);
@@ -117,11 +147,17 @@ server.get('/quest', async (require, response) => {
     let quest = await Quest.findAll();
     let finalQuest = [];
     let andress;
+    let annotationsQuest = [];
 
     for(let i = 1; i <= quest.length; i++){
         if(Quest.findByPk(i, {include: [Pet, Client]})){
             andress = await Andress.findByPk(i, {include: [Client]})
-            finalQuest.push({"Quest":  await Quest.findByPk(i, {include: [Pet]}),"Endereco": andress});
+            annotationsQuest = await Quests_Annotation.findAll({
+                where:{
+                    QuestId: i
+                }
+            })
+            finalQuest.push({"Quest":  await Quest.findByPk(i, {include: [Pet]}),"Endereco": andress, "Anotacoes": annotationsQuest});
             console.log("indice I: ", i, " retorno: ", finalQuest);
         }
     }
@@ -211,6 +247,8 @@ server.put('/quest/StatusModify/:id', async (require, response) =>  {
     }
 
 });
+
+
 
 server.listen(8000, () => {
     console.log("Servidor iniciado!");
